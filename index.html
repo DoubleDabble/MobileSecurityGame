@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+/* ---- index.html ---- */
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Security Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka+One&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --sky:       #5BAEF7;
+            --sky-dark:  #3A8ED4;
+            --sky-light: #A8D8FF;
+            --sky-pale:  #E8F4FF;
+            --btn-face:  #ffffff;
+            --btn-edge:  #B0CCED;
+            --green:     #4BCB74;
+            --green-d:   #2da055;
+            --red:       #F36B6B;
+            --red-d:     #c03f3f;
+            --gold:      #FFD93D;
+            --text-main: #1a3a5c;
+            --text-sub:  #4a7aaa;
+            --radius:    14px;
+            --shadow-card: 0 8px 32px rgba(58,100,180,0.13);
+        }
+
+        html, body {
+            height: 100%;
+            font-family: 'Nunito', sans-serif;
+            background-color: #d0eaff;
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        /* ── PER-SCREEN BACKGROUND IMAGES ─────────────────────────────────
+           JS swaps a bg-* class on <body> when each screen becomes active.
+           PNG filenames to supply: bg-title.png | bg-auth.png | bg-game.png
+           Falls back to --color if the PNG is missing.
+        ────────────────────────────────────────────────────────────────── */
+        body.bg-title {
+            background-image: url('bg-title.png');
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+        }
+        body.bg-auth {
+            background-image: url('bg-auth.png');
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+        }
+        body.bg-game {
+            background-image: url('bg-game.png');
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+        }
+
+        /* ---- SCREENS ---- */
+        .screen {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            transition: opacity 0.35s ease, transform 0.35s ease;
+        }
+        .screen.hidden { opacity: 0; pointer-events: none; transform: translateY(18px); }
+
+        /* ---- CARD ---- */
+        .card {
+            background: rgba(255,255,255,0.82);
+            backdrop-filter: blur(12px);
+            border-radius: 24px;
+            border: 1.5px solid rgba(255,255,255,0.9);
+            box-shadow: var(--shadow-card);
+            padding: 36px 40px;
+            width: 100%; max-width: 440px;
+            position: relative; z-index: 1;
+        }
+
+        /* ══════════════════════════════════════
+           PNG BUTTON SYSTEM
+           All clickable images swap src on press.
+           Text labels sit on top via .png-btn-label.
+        ══════════════════════════════════════ */
+        .png-btn {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        .png-btn img {
+            display: block;
+            width: 100%;
+            height: auto;
+            /* Slight scale-down on press is handled by JS toggling .pressed */
+            transition: transform 0.07s ease;
+        }
+        .png-btn.pressed img { transform: translateY(3px) scale(0.97); }
+        .png-btn-label {
+            position: absolute;
+            font-family: 'Fredoka One', cursive;
+            font-size: clamp(15px, 3vw, 20px);
+            color: var(--text-main);
+            text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+            pointer-events: none;
+            letter-spacing: 0.03em;
+        }
+        /* Wider label for start button (slightly bigger image) */
+        .png-btn.start-btn .png-btn-label { font-size: clamp(18px, 3.5vw, 26px); }
+
+        /* ---- TITLE SCREEN ---- */
+        #screen-title { gap: 20px; }
+
+        .title-hero {
+            position: relative; z-index: 1;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .title-hero img#title-img {
+            width: min(360px, 88vw);
+            height: auto;
+            filter: drop-shadow(0 8px 24px rgba(58,120,200,0.22));
+        }
+        /* Fallback text if title.png missing */
+        .title-logo-fallback {
+            font-family: 'Fredoka One', cursive;
+            font-size: clamp(32px, 7vw, 52px);
+            color: var(--text-main);
+            text-align: center;
+            line-height: 1.15;
+            text-shadow: 0 3px 0 rgba(90,160,230,0.25);
+        }
+        .title-logo-fallback span { color: var(--sky-dark); }
+
+        /* Start button — larger, centered */
+        .title-start-row {
+            position: relative; z-index: 1;
+            display: flex; justify-content: center;
+        }
+        .title-start-row .png-btn { width: min(260px, 70vw); }
+
+        /* Bottom row: Scoreboard | Quit — side by side */
+        .title-secondary-row {
+            position: relative; z-index: 1;
+            display: flex; gap: 16px; justify-content: center;
+        }
+        .title-secondary-row .png-btn { width: min(150px, 38vw); }
+
+        /* Auth flow button row (login / register / guest) */
+        .title-auth-row {
+            position: relative; z-index: 1;
+            display: flex; flex-direction: column; gap: 12px;
+            width: min(280px, 80vw);
+        }
+        .title-auth-row .png-btn { width: 100%; }
+
+        /* ---- REGULAR CSS BUTTONS (auth screens, feedback, game-over) ---- */
+        .btn {
+            font-family: 'Nunito', sans-serif;
+            font-size: 17px; font-weight: 800;
+            padding: 14px 28px;
+            border-radius: var(--radius);
+            border: none; cursor: pointer;
+            transition: transform 0.08s ease, box-shadow 0.08s ease;
+            letter-spacing: 0.02em;
+        }
+        .btn:active { transform: translateY(4px); }
+        .btn-primary {
+            background: var(--sky); color: #fff;
+            box-shadow: 0 5px 0 var(--sky-dark), 0 7px 16px rgba(58,142,212,0.28);
+        }
+        .btn-primary:hover { background: #6dc0ff; }
+        .btn-primary:active { box-shadow: 0 1px 0 var(--sky-dark); }
+        .btn-secondary {
+            background: var(--btn-face); color: var(--sky-dark);
+            box-shadow: 0 5px 0 var(--btn-edge), 0 7px 16px rgba(90,140,200,0.13);
+        }
+        .btn-secondary:hover { background: var(--sky-pale); }
+        .btn-secondary:active { box-shadow: 0 1px 0 var(--btn-edge); }
+        .btn-green {
+            background: var(--green); color: #fff;
+            box-shadow: 0 5px 0 var(--green-d), 0 7px 16px rgba(40,180,90,0.22);
+        }
+        .btn-green:hover { background: #5ed985; }
+        .btn-green:active { box-shadow: 0 1px 0 var(--green-d); }
+        .btn-ghost {
+            background: transparent; color: var(--text-sub);
+            font-weight: 700; font-size: 14px; box-shadow: none; padding: 8px 16px;
+        }
+        .btn-ghost:hover { color: var(--sky-dark); background: rgba(91,174,247,0.08); border-radius: 8px; }
+        .btn-ghost:active { transform: none; }
+        .btn-full { width: 100%; }
+
+        /* ---- AUTH FORMS ---- */
+        .auth-title {
+            font-family: 'Fredoka One', cursive;
+            font-size: 28px; color: var(--text-main); margin-bottom: 6px;
+        }
+        .auth-sub { font-size: 14px; color: var(--text-sub); margin-bottom: 24px; }
+        .field { margin-bottom: 16px; }
+        .field label {
+            display: block; font-size: 13px; font-weight: 700; color: var(--text-sub);
+            margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .field input {
+            width: 100%; padding: 12px 16px; border-radius: 12px;
+            border: 2px solid #cce0f5;
+            font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 600;
+            color: var(--text-main); background: rgba(255,255,255,0.9);
+            outline: none; transition: border-color 0.18s, box-shadow 0.18s;
+        }
+        .field input:focus { border-color: var(--sky); box-shadow: 0 0 0 4px rgba(91,174,247,0.18); }
+        .field input.error { border-color: var(--red); }
+        .field-hint { font-size: 12px; color: var(--text-sub); margin-top: 5px; }
+        .field-error { font-size: 12px; color: var(--red-d); font-weight: 700; margin-top: 5px; display: none; }
+        .field-error.visible { display: block; }
+        .form-error {
+            background: #fee8e8; border: 1.5px solid #f9b0b0; border-radius: 10px;
+            padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--red-d);
+            margin-bottom: 16px; display: none;
+        }
+        .form-error.visible { display: block; }
+        .auth-switch { text-align: center; margin-top: 18px; font-size: 14px; color: var(--text-sub); }
+        .auth-switch a { color: var(--sky-dark); font-weight: 800; cursor: pointer; text-decoration: none; }
+        .auth-switch a:hover { text-decoration: underline; }
+        .divider {
+            display: flex; align-items: center; gap: 10px;
+            margin: 18px 0; color: var(--text-sub); font-size: 13px; font-weight: 600;
+        }
+        .divider::before, .divider::after {
+            content: ''; flex: 1; height: 1.5px; background: #cce0f5; border-radius: 2px;
+        }
+        .pw-strength { margin-top: 7px; display: none; }
+        .pw-strength.visible { display: block; }
+        .pw-strength-bar { height: 5px; border-radius: 4px; background: #dde8f5; overflow: hidden; margin-bottom: 4px; }
+        .pw-strength-fill { height: 100%; border-radius: 4px; transition: width 0.25s, background 0.25s; }
+        .pw-strength-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+
+        /* ---- GAME SCREEN ---- */
+        /* The game screen uses a true flex column that fills the viewport.
+           Header + progress are fixed-height; game-body takes the rest.
+           Everything is sized with dvh/% so 4 buttons always fit. */
+        #screen-game {
+            justify-content: flex-start;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        /* ── Header: compact single strip ── */
+        .game-header {
+            width: 100%; max-width: 680px;
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.88); backdrop-filter: blur(10px);
+            border-bottom: 1.5px solid rgba(255,255,255,0.9);
+            padding: 8px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: relative; z-index: 2;
+            border-radius: 0 0 16px 16px;
+            box-shadow: 0 3px 14px rgba(58,100,180,0.1);
+        }
+        .game-player { font-size: 13px; font-weight: 700; color: var(--text-sub); }
+        .game-player span { color: var(--text-main); }
+        .score-badge {
+            background: var(--sky); color: #fff; font-weight: 800; font-size: 13px;
+            padding: 4px 14px; border-radius: 20px; box-shadow: 0 2px 0 var(--sky-dark);
+        }
+
+        /* ── Progress bar: slim strip below header ── */
+        .progress-wrap {
+            width: 100%; max-width: 680px;
+            padding: 0 20px 6px;
+            flex-shrink: 0;
+            position: relative; z-index: 1;
+        }
+        .progress-track {
+            height: 6px; background: rgba(255,255,255,0.55); border-radius: 6px; overflow: hidden;
+            box-shadow: inset 0 1px 3px rgba(58,100,180,0.12);
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--sky), #3ACFFF);
+            border-radius: 6px;
+            transition: width 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        /* ── Game body: flex column, fills remaining height ── */
+        .game-body {
+            width: 100%; max-width: 680px;
+            flex: 1 1 0;
+            min-height: 0;               /* critical — allows children to shrink */
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: flex-start;
+            padding: 10px 16px 10px;
+            gap: 8px;
+            position: relative; z-index: 1;
+            overflow: hidden;
+        }
+
+        /* ── Question card: fixed readable size, does not grow ── */
+        .question-card {
+            background: rgba(255,255,255,0.92); border-radius: 18px;
+            border: 1.5px solid #fff; box-shadow: var(--shadow-card);
+            padding: 14px 20px;
+            flex-shrink: 0;
+            width: 100%;
+        }
+        .question-number {
+            font-size: 11px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--sky); margin-bottom: 6px;
+        }
+        #question_text {
+            font-size: clamp(18px, 2.8vw + 0.5vh, 24px);
+            font-weight: 800;
+            color: var(--text-main); line-height: 1.35;
+        }
+
+        /* ── Options container: takes remaining space, distributes evenly ── */
+        #options_container {
+            width: 100%;
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0;                      /* gap is handled by button aspect ratio */
+        }
+
+        /* ── Option buttons: each takes equal share of remaining height ── */
+        .option-png-btn {
+            position: relative;
+            flex: 1 1 0;               /* equal height slices */
+            min-height: 0;
+            display: flex; align-items: center;
+            cursor: pointer; border: none; background: transparent;
+            padding: 0; -webkit-tap-highlight-color: transparent; user-select: none;
+        }
+        /* The PNG image defines the visual shape — it stretches to fill the flex slot */
+        .option-png-btn img {
+            display: block;
+            width: 100%;
+            height: 100%;              /* fills the flex slot height */
+            object-fit: fill;          /* stretches the button PNG to fit */
+            transition: transform 0.07s;
+        }
+        .option-png-btn.pressed img { transform: translateY(2px) scale(0.99); }
+        .option-png-btn-label {
+            position: absolute; left: 0; right: 0;
+            padding: 0 20px;
+            font-family: 'Nunito', sans-serif;
+            font-size: clamp(14px, 1.8vw + 0.8vh, 18px);
+            font-weight: 800; color: var(--text-main);
+            text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+            pointer-events: none;
+            text-align: left;
+            /* Vertically centered inside the flex slot */
+            top: 50%; transform: translateY(-50%);
+        }
+        .option-png-btn:disabled { opacity: 0.55; cursor: default; }
+
+        /* ---- FEEDBACK OVERLAY ---- */
+        #feedback_overlay {
+            position: fixed; inset: 0; background: rgba(40,90,150,0.35);
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px; z-index: 100; backdrop-filter: blur(4px);
+        }
+        #feedback_overlay.hidden { display: none; }
+        .feedback-card {
+            background: #fff; border-radius: 24px; padding: 36px;
+            max-width: 420px; width: 100%; text-align: center;
+            box-shadow: 0 12px 48px rgba(40,90,180,0.22);
+        }
+        .feedback-icon { font-size: 52px; margin-bottom: 12px; }
+        .feedback-result { font-family: 'Fredoka One', cursive; font-size: 30px; margin-bottom: 10px; }
+        .feedback-result.correct { color: var(--green-d); }
+        .feedback-result.incorrect { color: var(--red-d); }
+        .feedback-explanation { font-size: 15px; color: var(--text-sub); line-height: 1.6; margin-bottom: 24px; }
+
+        /* ---- GAME OVER ---- */
+        .gameover-card {
+            background: rgba(255,255,255,0.92); border-radius: 28px;
+            padding: 44px 40px; max-width: 440px; width: 100%;
+            text-align: center; box-shadow: var(--shadow-card); position: relative; z-index: 1;
+        }
+        .gameover-trophy { font-size: 64px; margin-bottom: 12px; }
+        .gameover-title { font-family: 'Fredoka One', cursive; font-size: 36px; color: var(--text-main); margin-bottom: 6px; }
+        .gameover-score { font-size: 52px; font-weight: 900; color: var(--sky-dark); margin: 10px 0 4px; }
+        .gameover-label { font-size: 14px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 28px; }
+        .gameover-buttons { display: flex; flex-direction: column; gap: 12px; }
+
+        /* Loading dots */
+        .loading-dots { display: flex; gap: 8px; align-items: center; }
+        .loading-dots span { width: 10px; height: 10px; border-radius: 50%; background: var(--sky); animation: bounce 0.9s infinite ease-in-out; }
+        .loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+        .loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes bounce { 0%,80%,100% { transform: scale(0.7); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
+
+        /* ══════════════════════════════════════
+           MODAL OVERLAY (Scoreboard + Quit confirm)
+        ══════════════════════════════════════ */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(20,60,120,0.45);
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px; z-index: 200;
+            backdrop-filter: blur(6px);
+        }
+        .modal-overlay.hidden { display: none; }
+        .modal-card {
+            background: #fff; border-radius: 24px;
+            padding: 36px 32px; max-width: 400px; width: 100%;
+            box-shadow: 0 16px 56px rgba(30,80,160,0.25);
+            text-align: center;
+        }
+        .modal-title {
+            font-family: 'Fredoka One', cursive;
+            font-size: 26px; color: var(--text-main); margin-bottom: 6px;
+        }
+        .modal-sub { font-size: 14px; color: var(--text-sub); margin-bottom: 20px; }
+        .modal-buttons { display: flex; gap: 12px; margin-top: 20px; }
+        .modal-buttons .btn { flex: 1; }
+
+        /* Leaderboard table */
+        .lb-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        .lb-table th {
+            font-size: 11px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-sub);
+            padding: 6px 10px; border-bottom: 1.5px solid #dde8f5;
+            text-align: left;
+        }
+        .lb-table th:last-child { text-align: right; }
+        .lb-table td { padding: 10px 10px; font-size: 14px; font-weight: 700; color: var(--text-main); border-bottom: 1px solid #eef4fb; }
+        .lb-table td:last-child { text-align: right; color: var(--sky-dark); }
+        .lb-table tr:last-child td { border-bottom: none; }
+        .lb-rank { font-size: 16px; }
+        .lb-empty { padding: 24px 0; color: var(--text-sub); font-size: 14px; }
+
+        /* Quit confirm icon */
+        .quit-icon { font-size: 48px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+
+    <!-- ═══════ TITLE SCREEN ═══════ -->
+    <div class="screen" id="screen-title">
+
+        <!-- Hero image -->
+        <div class="title-hero">
+            <img src="title.png" alt="Mobile Security Game" id="title-img"
+                 onerror="this.style.display='none';document.getElementById('title-fallback').style.display='block';">
+            <div class="title-logo-fallback" id="title-fallback" style="display:none;">
+                Mobile<br><span>Security</span> Quiz
+            </div>
+        </div>
+
+        <!-- START button (startButton.png / StartbuttonPressed.png) -->
+        <div class="title-start-row">
+            <button class="png-btn start-btn" id="btn-start-play"
+                    data-idle="startButton.png" data-pressed="StartbuttonPressed.png">
+                <img src="startButton.png" alt="Start"
+                     onerror="this.src='button.png'">
+                <span class="png-btn-label">Play</span>
+            </button>
+        </div>
+
+        <!-- Secondary row: Scoreboard | Quit (use button.png for now) -->
+        <div class="title-secondary-row">
+            <button class="png-btn" id="btn-scoreboard"
+                    data-idle="button.png" data-pressed="buttonpressed.png">
+                <img src="button.png" alt="Scoreboard">
+                <span class="png-btn-label">Scores</span>
+            </button>
+
+            <button class="png-btn" id="btn-quit"
+                    data-idle="button.png" data-pressed="buttonpressed.png">
+                <img src="button.png" alt="Quit">
+                <span class="png-btn-label">Quit</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════ AUTH CHOICE (after pressing Start) ═══════ -->
+    <div class="screen hidden" id="screen-auth-choice">
+        <div class="card">
+            <p class="auth-title" style="text-align:center;">How do you want to play?</p>
+            <p class="auth-sub" style="text-align:center;">Log in to save scores, or jump in as a guest.</p>
+
+            <div class="title-auth-row" style="margin: 0 auto;">
+                <button class="png-btn" id="btn-login"
+                        data-idle="button.png" data-pressed="buttonpressed.png">
+                    <img src="button.png" alt="Log In" onerror="this.src='button.png'">
+                    <span class="png-btn-label">Log In</span>
+                </button>
+                <button class="png-btn" id="btn-register"
+                        data-idle="button.png" data-pressed="buttonpressed.png">
+                    <img src="button.png" alt="Register" onerror="this.src='button.png'">
+                    <span class="png-btn-label">Create Account</span>
+                </button>
+                <button class="png-btn" id="btn-guest"
+                        data-idle="button.png" data-pressed="buttonpressed.png">
+                    <img src="button.png" alt="Guest" onerror="this.src='button.png'">
+                    <span class="png-btn-label">Guest</span>
+                </button>
+            </div>
+
+            <div class="auth-switch" style="margin-top:20px;">
+                <a id="link-back-from-choice">← Back</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════ LOGIN SCREEN ═══════ -->
+    <div class="screen hidden" id="screen-login">
+        <div class="card">
+            <p class="auth-title">Welcome back!</p>
+            <p class="auth-sub">Log in to see your high scores.</p>
+            <div class="form-error" id="login-error"></div>
+            <div class="field">
+                <label for="login-username">Username</label>
+                <input type="text" id="login-username" placeholder="Your username" autocomplete="username">
+            </div>
+            <div class="field">
+                <label for="login-password">Password</label>
+                <input type="password" id="login-password" placeholder="Your password" autocomplete="current-password">
+                <div class="field-error" id="login-pw-error"></div>
+            </div>
+            <button class="btn btn-primary btn-full" id="btn-do-login" style="margin-top:8px;">Log In</button>
+            <div class="divider">or</div>
+            <button class="btn btn-ghost btn-full" id="btn-guest2">Continue as Guest</button>
+            <div class="auth-switch">Don't have an account? <a id="link-to-register">Sign up</a></div>
+            <div class="auth-switch" style="margin-top:8px;"><a id="link-back-title">← Back</a></div>
+        </div>
+    </div>
+
+    <!-- ═══════ REGISTER SCREEN ═══════ -->
+    <div class="screen hidden" id="screen-register">
+        <div class="card">
+            <p class="auth-title">Create Account</p>
+            <p class="auth-sub">Pick a username and secure password.</p>
+            <div class="form-error" id="reg-error"></div>
+            <div class="field">
+                <label for="reg-username">Username</label>
+                <input type="text" id="reg-username" placeholder="Choose a username" autocomplete="username">
+                <div class="field-error" id="reg-username-error"></div>
+            </div>
+            <div class="field">
+                <label for="reg-password">Password</label>
+                <input type="password" id="reg-password" placeholder="Create a password" autocomplete="new-password">
+                <div class="pw-strength" id="pw-strength-wrap">
+                    <div class="pw-strength-bar"><div class="pw-strength-fill" id="pw-fill"></div></div>
+                    <span class="pw-strength-label" id="pw-label" style="color:#aaa;">Too short</span>
+                </div>
+                <div class="field-hint">Min 8 chars • 1 uppercase • 1 number</div>
+                <div class="field-error" id="reg-pw-error"></div>
+            </div>
+            <div class="field">
+                <label for="reg-confirm">Confirm Password</label>
+                <input type="password" id="reg-confirm" placeholder="Repeat your password" autocomplete="new-password">
+                <div class="field-error" id="reg-confirm-error"></div>
+            </div>
+            <button class="btn btn-green btn-full" id="btn-do-register" style="margin-top:8px;">Create Account</button>
+            <div class="auth-switch">Already have an account? <a id="link-to-login">Log in</a></div>
+            <div class="auth-switch" style="margin-top:8px;"><a id="link-back-title2">← Back</a></div>
+        </div>
+    </div>
+
+    <!-- ═══════ GAME SCREEN ═══════ -->
+    <div class="screen hidden" id="screen-game">
+        <div class="game-header">
+            <div class="game-player">Playing as <span id="display-username">Guest</span></div>
+            <div class="score-badge">Score: <span id="score_display">0</span></div>
+        </div>
+        <div class="progress-wrap">
+            <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+        </div>
+        <!-- game-body content is NEVER wiped by showGameOver — it swaps to a separate overlay -->
+        <div class="game-body">
+            <div class="question-card" id="question-card">
+                <div class="question-number" id="question-number">Question 1</div>
+                <h2 id="question_text">
+                    <div class="loading-dots"><span></span><span></span><span></span></div>
+                </h2>
+            </div>
+            <div id="options_container"></div>
+        </div>
+    </div>
+
+    <!-- ═══════ FEEDBACK OVERLAY ═══════ -->
+    <div id="feedback_overlay" class="hidden">
+        <div class="feedback-card">
+            <div class="feedback-icon" id="feedback-icon"></div>
+            <div class="feedback-result" id="feedback-result"></div>
+            <p class="feedback-explanation" id="feedback-explanation"></p>
+            <button class="btn btn-primary btn-full" id="feedback-continue">Continue</button>
+        </div>
+    </div>
+
+    <!-- ═══════ GAME OVER OVERLAY (separate from game-body — fixes Play Again) ═══════ -->
+    <div id="gameover_overlay" class="modal-overlay hidden">
+        <div class="gameover-card">
+            <div class="gameover-trophy" id="gameover-trophy"></div>
+            <div class="gameover-title">Game Over!</div>
+            <div id="gameover-newrecord" style="display:none; color:#2da055; font-weight:800; font-size:14px; margin-bottom:4px;">🎉 New High Score!</div>
+            <div class="gameover-score" id="gameover-score"></div>
+            <div class="gameover-label" id="gameover-label"></div>
+            <div id="gameover-guest-msg" style="display:none; font-size:13px; color:#4a7aaa; margin-bottom:20px;">Create an account to save your scores!</div>
+            <div class="gameover-buttons">
+                <button class="btn btn-primary btn-full" id="btn-play-again">Play Again</button>
+                <button class="btn btn-secondary btn-full" id="btn-to-menu">Main Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════ SCOREBOARD MODAL ═══════ -->
+    <div id="scoreboard_overlay" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width:440px;">
+            <div class="modal-title">🏆 Leaderboard</div>
+            <div class="modal-sub">Top scores from all saved accounts</div>
+            <div id="leaderboard-body"></div>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary btn-full" id="btn-close-scoreboard">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════ QUIT CONFIRM MODAL ═══════ -->
+    <div id="quit_overlay" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="quit-icon">👋</div>
+            <div class="modal-title">Quit Game?</div>
+            <div class="modal-sub">Are you sure you want to close the game?</div>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary btn-full" id="btn-quit-cancel">Cancel</button>
+                <button class="btn btn-primary btn-full" id="btn-quit-confirm"
+                        style="background:var(--red); box-shadow:0 5px 0 var(--red-d);">Quit</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
